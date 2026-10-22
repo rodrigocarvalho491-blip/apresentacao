@@ -7,6 +7,9 @@ from PIL import Image
 
 try:
     import pptx
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
 except ImportError:
     pptx = None
 
@@ -68,7 +71,7 @@ with col_logo:
 
 with col_titulo:
     st.title("Gerador de Apresentação de Resultados")
-    st.markdown("Página dedicada e exclusiva para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**) com base comparativa anual por consultor.")
+    st.markdown("Página dedicada e exclusiva para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**) com base comparativa anual por consultor no padrão Consigaz.")
 
 st.divider()
 
@@ -111,35 +114,66 @@ with col_up2:
 
 st.divider()
 
-# --- FUNÇÃO PARA GERAR O PPTX REAL VIA PYTHON-PPTX ---
-def criar_apresentacao_pptx(tipo, consultor, periodo, v_atual, f_atual, v_ant, f_ant, clientes):
+# --- FUNÇÃO PARA GERAR O PPTX NO PADRÃO EXATO CONSIGAZ ---
+def criar_apresentacao_padrao_consigaz(tipo, consultor, periodo, v_atual, f_atual, v_ant, f_ant, clientes):
     if pptx is None:
         raise RuntimeError("A biblioteca python-pptx não está instalada no ambiente.")
     
     prs = pptx.Presentation()
     
-    # Slide 1: Capa
-    slide_layout_title = prs.slide_layouts[0]
+    # -------------------------------------------------------------------------
+    # SLIDE 1: CAPA INSTITUCIONAL CONSIGAZ
+    # -------------------------------------------------------------------------
+    slide_layout_title = prs.slide_layouts[0] # Título e subtítulo
     slide1 = prs.slides.add_slide(slide_layout_title)
-    slide1.shapes.title.text = f"Resultados - {tipo}"
-    slide1.placeholders[1].text = f"Consultor: {consultor}\nPeríodo: {periodo}"
     
-    # Slide 2: Resumo de Desempenho e Comparativo Anual
-    slide_layout_content = prs.slide_layouts[1]
+    title1 = slide1.shapes.title
+    subtitle1 = slide1.placeholders[1]
+    
+    title1.text = f"RELATÓRIO DE RESULTADOS\n{tipo.upper()}"
+    subtitle1.text = f"Consultor Responsável: {consultor}\nPeríodo de Referência: {periodo}\nConsigaz — Divisão Comercial"
+    
+    # -------------------------------------------------------------------------
+    # SLIDE 2: INDICADORES PRINCIPAIS E COMPARATIVO ANUAL
+    # -------------------------------------------------------------------------
+    slide_layout_content = prs.slide_layouts[1] # Título e Conteúdo
     slide2 = prs.slides.add_slide(slide_layout_content)
     slide2.shapes.title.text = "Indicadores de Desempenho & Comparativo Anual"
     
-    tf = slide2.placeholders[1].text_frame
-    tf.text = f"• Total de Clientes Atendidos: {clientes}"
-    tf.add_paragraph().text = f"• Volume Atual: {v_atual:.1f} TON (Ano Anterior: {v_ant:.1f} TON)"
+    tf2 = slide2.placeholders[1].text_frame
+    tf2.text = f"• Total de Clientes Atendidos: {clientes}"
+    
+    p_vol = tf2.add_paragraph()
+    p_vol.text = f"• Volume Consolidado (Ano Atual): {v_atual:.1f} TON (Ano Anterior: {v_ant:.1f} TON)"
     if v_ant > 0:
         cresc_vol = ((v_atual - v_ant) / v_ant) * 100
-        tf.add_paragraph().text = f"  -> Crescimento de Volume: {cresc_vol:+.1f}%"
-    
-    tf.add_paragraph().text = f"• Faturamento Atual: R$ {f_atual:,.2f} (Ano Anterior: R$ {f_ant:,.2f})"
+        p_vol_sub = tf2.add_paragraph()
+        p_vol_sub.text = f"   -> Variação de Volume: {cresc_vol:+.1f}% vs. Ano Anterior"
+        
+    p_fat = tf2.add_paragraph()
+    p_fat.text = f"• Faturamento Consolidado (Ano Atual): R$ {f_atual:,.2f} (Ano Anterior: R$ {f_ant:,.2f})"
     if f_ant > 0:
         cresc_fat = ((f_atual - f_ant) / f_ant) * 100
-        tf.add_paragraph().text = f"  -> Crescimento de Faturamento: {cresc_fat:+.1f}%"
+        p_fat_sub = tf2.add_paragraph()
+        p_fat_sub.text = f"   -> Variação de Faturamento: {cresc_fat:+.1f}% vs. Ano Anterior"
+
+    # -------------------------------------------------------------------------
+    # SLIDE 3: ANÁLISE DE CARTEIRA & CLIENTES (Em branco para preenchimento)
+    # -------------------------------------------------------------------------
+    slide3 = prs.slides.add_slide(slide_layout_content)
+    slide3.shapes.title.text = "Análise de Carteira & Principais Variações"
+    tf3 = slide3.placeholders[1].text_frame
+    tf3.text = "• [Campo reservado para inclusão dos principais clientes e contas em destaque]"
+    tf3.add_paragraph().text = "• [Inserir análises de expansão, novas instalações ou churn no período]"
+
+    # -------------------------------------------------------------------------
+    # SLIDE 4: PLANO DE AÇÃO & PRÓXIMOS PASSOS (Em branco para preenchimento)
+    # -------------------------------------------------------------------------
+    slide4 = prs.slides.add_slide(slide_layout_content)
+    slide4.shapes.title.text = "Plano de Ação & Próximos Passos"
+    tf4 = slide4.placeholders[1].text_frame
+    tf4.text = "• [Inserir diretrizes estratégicas e metas comerciais para o próximo ciclo]"
+    tf4.add_paragraph().text = "• [Ações corretivas ou expansões planejadas pelo consultor]"
 
     buffer = BytesIO()
     prs.save(buffer)
@@ -189,13 +223,13 @@ if arquivo_atual is not None:
 
         st.markdown("---")
         st.markdown("### 4. Geração do Arquivo da Apresentação")
-        st.info(f"O motor Python gerará a **{tipo_apresentacao}** oficial para o consultor **{consultor_nome}** com todos os dados consolidados.")
+        st.info(f"O motor Python gerará a **{tipo_apresentacao}** oficial para o consultor **{consultor_nome}** com os dados calculados e os slides complementares em branco para edição gerencial.")
 
         if st.button("🚀 Gerar e Baixar Apresentação Pronta", type="primary"):
             if pptx is None:
                 st.error("⚠️ A biblioteca `python-pptx` não está instalada no ambiente. Adicione-a ao `requirements.txt` ou instale via pip.")
             else:
-                pptx_bytes = criar_apresentacao_pptx(
+                pptx_bytes = criar_apresentacao_padrao_consigaz(
                     tipo_apresentacao, consultor_nome, periodo_referencia,
                     volume_atual_ton, faturamento_atual, volume_ant_ton, faturamento_ant, clientes_atual
                 )
