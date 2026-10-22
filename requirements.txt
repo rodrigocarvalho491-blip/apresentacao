@@ -1,7 +1,8 @@
 streamlit
-openpyxl
 pandas
+numpy
+openpyxl
 fpdf2
 Pillow
-streamlit-mic-recorder
-SpeechRecognition
+requests
+python-pptx
