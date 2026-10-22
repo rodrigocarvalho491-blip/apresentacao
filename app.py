@@ -124,7 +124,7 @@ def criar_apresentacao_padrao_consigaz(tipo, consultor, periodo, v_atual, f_atua
     # -------------------------------------------------------------------------
     # SLIDE 1: CAPA INSTITUCIONAL CONSIGAZ
     # -------------------------------------------------------------------------
-    slide_layout_title = prs.slide_layouts[0] # Título e subtítulo
+    slide_layout_title = prs.slide_layouts[0]
     slide1 = prs.slides.add_slide(slide_layout_title)
     
     title1 = slide1.shapes.title
@@ -136,7 +136,7 @@ def criar_apresentacao_padrao_consigaz(tipo, consultor, periodo, v_atual, f_atua
     # -------------------------------------------------------------------------
     # SLIDE 2: INDICADORES PRINCIPAIS E COMPARATIVO ANUAL
     # -------------------------------------------------------------------------
-    slide_layout_content = prs.slide_layouts[1] # Título e Conteúdo
+    slide_layout_content = prs.slide_layouts[1]
     slide2 = prs.slides.add_slide(slide_layout_content)
     slide2.shapes.title.text = "Indicadores de Desempenho & Comparativo Anual"
     
