@@ -4,6 +4,7 @@ import numpy as np
 import streamlit as st
 from io import BytesIO
 from PIL import Image
+import pptx
 
 # --- CONFIGURAÇÃO GLOBAL DA PÁGINA (SEM MENU LATERAL) ---
 st.set_page_config(
@@ -106,6 +107,38 @@ with col_up2:
 
 st.divider()
 
+# --- FUNÇÃO PARA GERAR O PPTX REAL ---
+def criar_apresentacao_pptx(tipo, consultor, periodo, v_atual, f_atual, v_ant, f_ant, clientes):
+    prs = pptx.Presentation()
+    
+    # Slide 1: Capa
+    slide_layout_title = prs.slide_layouts[0]
+    slide1 = prs.slides.add_slide(slide_layout_title)
+    slide1.shapes.title.text = f"Resultados - {tipo}"
+    slide1.placeholders[1].text = f"Consultor: {consultor}\nPeríodo: {periodo}"
+    
+    # Slide 2: Resumo de Desempenho e Comparativo Anual
+    slide_layout_content = prs.slide_layouts[1]
+    slide2 = prs.slides.add_slide(slide_layout_content)
+    slide2.shapes.title.text = "Indicadores de Desempenho & Comparativo Anual"
+    
+    tf = slide2.placeholders[1].text_frame
+    tf.text = f"• Total de Clientes Atendidos: {clientes}"
+    tf.add_paragraph().text = f"• Volume Atual: {v_atual:.1f} TON (Ano Anterior: {v_ant:.1f} TON)"
+    if v_ant > 0:
+        cresc_vol = ((v_atual - v_ant) / v_ant) * 100
+        tf.add_paragraph().text = f"  -> Crescimento de Volume: {cresch_str := f'{cresc_vol:+.1f}%'}"
+    
+    tf.add_paragraph().text = f"• Faturamento Atual: R$ {f_atual:,.2f} (Ano Anterior: R$ {f_ant:,.2f})"
+    if f_ant > 0:
+        cresc_fat = ((f_atual - f_ant) / f_ant) * 100
+        tf.add_paragraph().text = f"  -> Crescimento de Faturamento: {cresc_fat:+.1f}%"
+
+    buffer = BytesIO()
+    prs.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 # --- PROCESSAMENTO E COMPARAÇÃO ---
 if arquivo_atual is not None:
     try:
@@ -149,15 +182,20 @@ if arquivo_atual is not None:
 
         st.markdown("---")
         st.markdown("### 4. Geração do Arquivo da Apresentação")
-        st.info(f"O motor Python está configurado para gerar a **{tipo_apresentacao}** do consultor **{consultor_nome}** aplicando o racional comparativo entre os períodos.")
+        st.info(f"O motor Python gerará a **{tipo_apresentacao}** oficial para o consultor **{consultor_nome}** com todos os dados consolidados.")
 
         if st.button("🚀 Gerar e Baixar Apresentação Pronta", type="primary"):
+            pptx_bytes = criar_apresentacao_pptx(
+                tipo_apresentacao, consultor_nome, periodo_referencia,
+                volume_atual_ton, faturamento_atual, volume_ant_ton, faturamento_ant, clientes_atual
+            )
+            
             nome_arquivo = f"apresentacao_{tipo_apresentacao.lower().replace(' ', '_')}_{consultor_nome.lower().replace(' ', '_')}.pptx"
             
-            st.success("✅ Apresentação gerada com sucesso mantendo a identidade visual oficial da Consigaz!")
+            st.success("✅ Apresentação gerada com sucesso e pronta para uso!")
             st.download_button(
                 label="📥 Baixar Apresentação Pronta (.pptx)",
-                data=b"Simulacao de arquivo pptx Consigaz com comparativo anual", 
+                data=pptx_bytes, 
                 file_name=nome_arquivo,
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
