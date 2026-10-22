@@ -437,4 +437,494 @@ if menu == "📷 Visita de Transferência":
                     if get_c_pdf(it) == c_nome:
                         tot_v += it["vazao_total_item"]
                         v_disp = "-" if it.get("tipo") == "cilindro" else f"{it['vazao_total_item']:.2f}".replace(".", ",").rstrip("0").rstrip(",") + " kg/h"
-                        pdf.cell(20, 6, f"{it['qtd']:
+                        pdf.cell(20, 6, f"{it['qtd']:02d}", border=1, align="C")
+                        pdf.cell(120, 6, f"{it['nome']}", border=1, align="L")
+                        pdf.cell(50, 6, v_disp, border=1, align="C", ln=1)
+                
+                v_tot_str = f"{tot_v:.2f}".replace(".", ",").rstrip("0").rstrip(",")
+                pdf.set_font("Arial", "B", 10)
+                pdf.cell(140, 7, f"VAZÃO TOTAL {c_nome.upper()}:", border=1, align="R", fill=True)
+                pdf.cell(50, 7, f"{v_tot_str} kg/h", border=1, align="C", fill=True, ln=1)
+                pdf.ln(4)
+
+        return pdf.output(dest="S")
+
+    st.subheader("6. Ações Finais")
+    col_a1, col_a2 = st.columns(2)
+
+    with col_a1:
+        if st.button("📄 Gerar Relatório PDF"):
+            if not cod_cliente.strip() or not nome_cliente.strip():
+                st.error("⚠️ Preencha pelo menos o Código e o Nome do Cliente.")
+            else:
+                pdf_output = gerar_pdf(st.session_state.equipamentos, dic_fotos_final, cod_cliente, nome_cliente, qtd_centrais)
+                if isinstance(pdf_output, str):
+                    pdf_bytes = pdf_output.encode("latin-1")
+                else:
+                    pdf_bytes = pdf_output
+                
+                cod_limpo = cod_cliente.replace(".", "").strip()
+                data_atual_str = datetime.now().strftime("%d-%m-%y")
+                nome_arq_pdf = f"relatorio_{cod_limpo}_{data_atual_str}.pdf"
+
+                st.success("✅ PDF gerado com sucesso!")
+                st.download_button(
+                    label="📥 Baixar Relatório (PDF)",
+                    data=pdf_bytes,
+                    file_name=nome_arq_pdf,
+                    mime="application/pdf"
+                )
+
+    with col_a2:
+        if st.button("📝 Gerar Texto para Sistema"):
+            lista_eq_txt = ""
+            if st.session_state.equipamentos:
+                def get_c_txt(eq): return "Central" if qtd_centrais == 1 else eq.get("central", "Central")
+                cps = sorted(list(set([get_c_txt(eq) for eq in st.session_state.equipamentos])))
+                for c_n in cps:
+                    lista_eq_txt += f"Equipamentos {c_n}\n"
+                    v_c = 0.0
+                    for eq in st.session_state.equipamentos:
+                        if get_c_txt(eq) == c_n:
+                            lista_eq_txt += f"{eq['texto']}\n"
+                            v_c += eq["vazao_total_item"]
+                    lista_eq_txt += f"\nTotal Vazão {c_n}: {f'{v_c:.2f}'.replace('.', ',')} kg/h\n\n"
+            else:
+                lista_eq_txt = "Nenhum item cadastrado.\n\n"
+
+            texto_final = f"""Contato: {contato}
+Departamento: {departamento}
+Telefone: {telefone}
+Equipamento de acordo com o contrato: {eq_contrato} - {desc_eq_contrato}
+Consumo Previsto: {consumo_previsto} kg | Consumo Real: {consumo_real} kg
+Possui ART: {possui_art} - {desc_art}
+Central dentro de norma: {central_norma}
+
+{lista_eq_txt}
+Observações: {observacoes}
+"""
+            st.success("✅ Texto gerado com sucesso!")
+            st.text_area("Texto gerado:", value=texto_final, height=200)
+            
+            # Botão de cópia customizado com quebras de linha preservadas
+            safe_text = texto_final.replace('`', '\\`').replace('$', '\\$').replace('\n', '\\n')
+            components.html(f"""
+                <textarea id="txt_copy" style="position:absolute; left:-9999px;">{texto_final}</textarea>
+                <button onclick="copyText()" style="background-color:#004080; color:white; border:none; border-radius:8px; padding:10px 20px; font-weight:bold; cursor:pointer;">
+                    📋 Copiar Texto Completo
+                </button>
+                <script>
+                function copyText() {{
+                    var copyText = document.getElementById("txt_copy");
+                    copyText.select();
+                    document.execCommand("copy");
+                    alert("Texto copiado para a área de transferência!");
+                }}
+                </script>
+            """, height=60)
+
+
+# =====================================================================
+# TELA 2: ELABORAÇÃO DE CONTRATO
+# =====================================================================
+elif menu == "📝 Elaboração de Contrato":
+    rc = st.session_state.get('reset_counter', 0)
+
+    col_logo, col_titulo = st.columns([1, 4])
+    with col_logo:
+        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=150)
+    with col_titulo:
+        st.title("Elaboração de Contrato")
+        st.markdown("Formulário de preenchimento e geração do padrão de solicitação.")
+
+    st.divider()
+
+    tipo_fluxo = st.radio("Selecione o objetivo da solicitação:", ["Gerar Minuta", "Enviar para Assinatura"], horizontal=True)
+
+    st.write("")
+    st.subheader("1. Dados da Solicitação")
+
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        motivo_solicitacao = st.text_input("Motivo da solicitação", key=f"motivo_{rc}")
+        contato_contrato = st.text_input("Contato", key=f"cont_c_{rc}")
+        telefone_contrato = st.text_input("Telefone", key=f"tel_c_{rc}")
+        email_contrato = st.text_input("E-mail", key=f"email_c_{rc}")
+        tipo_contrato = st.radio("Contrato / Aditamento / Distrato", ["Contrato", "Aditamento", "Distrato"], horizontal=True, key=f"tipo_c_{rc}")
+        mesmo_prop = st.radio("Mesmo proprietário?", ["Sim", "Não"], horizontal=True, index=None, key=f"mesmo_p_{rc}")
+
+        if mesmo_prop == "Sim":
+            cnpj = st.text_input("CNPJ", key=f"cnpj_{rc}")
+            ie = st.text_input("I.E.", key=f"ie_{rc}")
+            novo_cnpj, nova_ie = "", ""
+        elif mesmo_prop == "Não":
+            novo_cnpj = st.text_input("Novo CNPJ", key=f"n_cnpj_{rc}")
+            nova_ie = st.text_input("Nova I.E.", key=f"n_ie_{rc}")
+            cnpj, ie = "", ""
+        else:
+            cnpj, ie, novo_cnpj, nova_ie = "", "", "", ""
+
+        # Lógica de consulta de CNPJ automatizada
+        cnpj_para_consultar = novo_cnpj if mesmo_prop == "Não" else cnpj
+        if cnpj_para_consultar and len("".join(filter(str.isdigit, cnpj_para_consultar))) == 14:
+            dados_empresa = consultar_dados_cnpj(cnpj_para_consultar)
+            if dados_empresa:
+                st.success(f"🏢 Empresa localizada: **{dados_empresa.get('razao_social', 'N/A')}** (Situação: **{dados_empresa.get('situacao_cadastral', 'Ativa')}**)")
+
+        endereco_padrao = st.text_input("Endereço padrão ou entrega?", key=f"end_p_{rc}")
+
+    with col_c2:
+        cond_pagamento = st.text_input("Condição de pagamento", key=f"cond_p_{rc}")
+        vigencia = st.text_input("Vigência", key=f"vig_{rc}")
+
+    st.divider()
+    st.subheader("2. Responsáveis & Assinaturas")
+    resp_pendentes = st.text_input("Quem será o responsável pelas NF's pendentes?", key=f"resp_p_{rc}")
+    email_novo_prop = st.text_input("E-mail do novo proprietário que receberá o novo contrato", key=f"email_np_{rc}")
+
+    if tipo_fluxo == "Enviar para Assinatura":
+        col_a1, col_a2 = st.columns(2)
+        with col_a1:
+            nome_testemunha = st.text_input("Nome da Testemunha", key=f"test_n_{rc}")
+            email_testemunha = st.text_input("E-mail da Testemunha", key=f"test_e_{rc}")
+        with col_a2:
+            nome_responsavel = st.text_input("Nome do Responsável pela assinatura", key=f"resp_n_{rc}")
+            email_responsavel = st.text_input("E-mail do Responsável pela assinatura", key=f"resp_e_{rc}")
+    else:
+        nome_testemunha, email_testemunha, nome_responsavel, email_responsavel = "", "", "", ""
+
+    st.divider()
+    st.subheader("3. Condomínio CONTA SIM?")
+    conta_sim = st.radio("Condomínio CONTA SIM?", ["Sim", "Não"], horizontal=True, index=1, key=f"c_sim_{rc}")
+
+    num_unidades, qtd_torres, qtd_blocos, preco_religue, preco_servico = "", "", "", "", ""
+    if conta_sim == "Sim":
+        col_cs1, col_cs2, col_cs3 = st.columns(3)
+        with col_cs1:
+            num_unidades = st.text_input("N° Unid autônomas (Aptos + áreas comuns/zeladoria)", key=f"unid_{rc}")
+            qtd_torres = st.text_input("Qtd Torres", key=f"torres_{rc}")
+        with col_cs2:
+            qtd_blocos = st.text_input("Qtd Blocos", key=f"blocos_{rc}")
+            preco_religue = st.text_input("Valor preço de religue", key=f"religue_{rc}")
+        with col_cs3:
+            preco_servico = st.text_input("Valor preço de serviço", key=f"servico_{rc}")
+
+    st.divider()
+    st.subheader("4. Dados do Contrato (Equipamentos & Endereços)")
+    
+    qtd_enderecos = st.number_input("Quantidade de endereços de entrega / centrais", min_value=1, value=1, step=1, key=f"qtd_end_cont_{rc}")
+    equipamentos_contrato = ""
+    if qtd_enderecos == 1:
+        equipamentos_contrato = st.text_input("Equipamentos", key=f"eq_unico_{rc}")
+    else:
+        eq_lista_temp = []
+        for i in range(1, qtd_enderecos + 1):
+            eq_end = st.text_input(f"Equipamentos [Entrega {i}]", key=f"eq_end_{i}_{rc}")
+            if eq_end.strip():
+                eq_lista_temp.append(f"[Entrega {i}] {eq_end.strip()}")
+        equipamentos_contrato = " ".join(eq_lista_temp)
+
+    st.divider()
+    st.subheader("5. Comodato / Fornecimento")
+    tipo_fornecimento = st.multiselect("Selecione o tipo de fornecimento:", ["Granel", "Cilindro"], key=f"forn_{rc}")
+
+    preco_granel, consumo_granel = "", ""
+    p13_preco, p13_qtd, p20_preco, p20_qtd, p45_preco, p45_qtd = "", 0, "", 0, "", 0
+    consumo_cilindro_total = 0
+
+    if "Granel" in tipo_fornecimento:
+        col_g1, col_g2 = st.columns(2)
+        with col_g1: preco_granel = st.text_input("Preço Granel", key=f"p_gran_{rc}")
+        with col_g2: consumo_granel = st.text_input("Consumo mensal previsto (kgs)", key=f"c_gran_{rc}")
+
+    if "Cilindro" in tipo_fornecimento:
+        st.markdown("**Preços e Quantidades por Modelo de Cilindro:**")
+        cc1, cc2, cc3 = st.columns(3)
+        with cc1:
+            p13_preco = st.text_input("Preço P13", key=f"p13_p_{rc}")
+            p13_qtd = st.number_input("Qtd P13", min_value=0, value=0, step=1, key=f"p13_q_{rc}")
+        with cc2:
+            p20_preco = st.text_input("Preço P20", key=f"p20_p_{rc}")
+            p20_qtd = st.number_input("Qtd P20", min_value=0, value=0, step=1, key=f"p20_q_{rc}")
+        with cc3:
+            p45_preco = st.text_input("Preço P45", key=f"p45_p_{rc}")
+            p45_qtd = st.number_input("Qtd P45", min_value=0, value=0, step=1, key=f"p45_q_{rc}")
+        
+        consumo_cilindro_total = (p13_qtd * 13) + (p20_qtd * 20) + (p45_qtd * 45)
+
+    st.divider()
+    observacoes_contrato = st.text_area("Obs.", key=f"obs_c_{rc}")
+
+    st.divider()
+    projeto_padrao = st.text_input("Projeto Padrão", key=f"proj_p_{rc}")
+    cilindro_projeto = st.checkbox("Cilindros (N/A)", key=f"cil_proj_{rc}")
+
+    st.divider()
+    if st.button("📝 Gerar Texto Padrão do Contrato", type="primary", key=f"btn_gen_elab_{rc}"):
+        proj_final = "N/A" if cilindro_projeto else projeto_padrao
+
+        texto_padrao_contrato = f"""ELABORAÇÃO DE CONTRATO
+
+Motivo da solicitação: {motivo_solicitacao}
+
+Contato: {contato_contrato}
+Telefone: {telefone_contrato}
+E-mail: {email_contrato}
+Contrato / Aditamento / Distrato: {tipo_contrato}
+Mesmo proprietário?: {mesmo_prop}"""
+
+        if mesmo_prop == "Sim":
+            texto_padrao_contrato += f"""
+CNPJ: {cnpj}
+I.E.: {ie}"""
+        elif mesmo_prop == "Não":
+            texto_padrao_contrato += f"""
+Novo CNPJ: {novo_cnpj}
+Nova I.E.: {nova_ie}"""
+
+        texto_padrao_contrato += f"""
+Endereço padrão ou entrega?: {endereco_padrao}"""
+
+        if "Granel" in tipo_fornecimento:
+            texto_padrao_contrato += f"""
+Preço Granel: {preco_granel}
+Consumo mensal previsto (kgs): {consumo_granel}"""
+
+        if "Cilindro" in tipo_fornecimento:
+            cil_precos_str = []
+            if p13_preco.strip(): cil_precos_str.append(f"[P13 = {p13_preco} / und]")
+            if p20_preco.strip(): cil_precos_str.append(f"[P20 = {p20_preco} / und]")
+            if p45_preco.strip(): cil_precos_str.append(f"[P45 = {p45_preco} / und]")
+            
+            if cil_precos_str:
+                texto_padrao_contrato += f"\nPreço Cilindro: " + ", ".join(cil_precos_str)
+            else:
+                texto_padrao_contrato += f"\nPreço Cilindro: "
+
+            cil_desc_arr = []
+            if p13_qtd > 0: cil_desc_arr.append(f"{p13_qtd} und P13")
+            if p20_qtd > 0: cil_desc_arr.append(f"{p20_qtd} und P20")
+            if p45_qtd > 0: cil_desc_arr.append(f"{p45_qtd} und P45")
+            
+            desc_str_final = ", ".join(cil_desc_arr) if cil_desc_arr else "0"
+            texto_padrao_contrato += f"\nQual consumo mensal previsto (qntd): {desc_str_final}"
+            texto_padrao_contrato += f"\nConsumo Previsto (Cilindro): {consumo_cilindro_total} KGs"
+
+        texto_padrao_contrato += f"""
+Condição de pagamento: {cond_pagamento}
+Vigência: {vigencia}
+Equipamentos: {equipamentos_contrato}
+Projeto Padrão: {proj_final}
+
+Quem será o responsável pelas NF's pendentes?: {resp_pendentes}
+E-mail do novo proprietário que receberá o novo contrato: {email_novo_prop}"""
+
+        if tipo_fluxo == "Enviar para Assinatura":
+            texto_padrao_contrato += f"""
+Nome da Testemunha: {nome_testemunha}
+E-mail da Testemunha: {email_testemunha}
+Nome do Responsável pela assinatura: {nome_responsavel}
+E-mail do Responsável pela assinatura: {email_responsavel}"""
+
+        texto_padrao_contrato += f"""
+Condomínio CONTA SIM?: {conta_sim}"""
+
+        if conta_sim == "Sim":
+            texto_padrao_contrato += f"""
+N° Unid autônomas (Aptos + áreas comuns/zeladoria): {num_unidades}
+Qtd Torres: {qtd_torres}
+Qtd Blocos: {qtd_blocos}
+Valor preço de religue: {preco_religue}
+Valor preço de serviço: {preco_servico}"""
+
+        texto_padrao_contrato += f"""
+
+Obs.: {observacoes_contrato}"""
+
+        st.success("✅ Texto padrão gerado com sucesso!")
+        st.text_area("Texto gerado:", value=texto_padrao_contrato, height=200)
+        
+        components.html(f"""
+            <textarea id="txt_copy_elab" style="position:absolute; left:-9999px;">{texto_padrao_contrato}</textarea>
+            <button onclick="copyTextElab()" style="background-color:#004080; color:white; border:none; border-radius:8px; padding:10px 20px; font-weight:bold; cursor:pointer;">
+                📋 Copiar Texto Completo
+            </button>
+            <script>
+            function copyTextElab() {{
+                var copyText = document.getElementById("txt_copy_elab");
+                copyText.select();
+                document.execCommand("copy");
+                alert("Texto copiado para a área de transferência!");
+            }}
+            </script>
+        """, height=60)
+
+
+# =====================================================================
+# TELA 3: APROVAÇÃO DE CONTRATO
+# =====================================================================
+elif menu == "📋 Aprovação de Contrato":
+    rc = st.session_state.get('reset_counter', 0)
+
+    col_logo, col_titulo = st.columns([1, 4])
+    with col_logo:
+        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=150)
+    with col_titulo:
+        st.title("Aprovação de Contrato")
+        st.markdown("Formulário de verificação e aprovação comercial.")
+
+    st.divider()
+
+    motivo_regularizacao = st.text_input("Motivo da regularização", key=f"apr_mot_{rc}")
+
+    st.subheader("1. Contatos")
+    col_ap1, col_ap2 = st.columns(2)
+    with col_ap1:
+        contato_aprov = st.text_input("Contato", key=f"apr_cont_{rc}")
+        telefone_aprov = st.text_input("Telefone", key=f"apr_tel_{rc}")
+    with col_ap2:
+        email_aprov = st.text_input("E-mail", key=f"apr_email_{rc}")
+
+    st.divider()
+    st.subheader("2. Condições & Títulos")
+    cond_pag_aprov = st.text_input("Condição de pagamento", key=f"apr_cp_{rc}")
+    titulos_aberto = st.radio("Possui títulos em aberto?", ["Sim", "Não"], index=None, horizontal=True, key=f"apr_tit_{rc}")
+    
+    detalhes_titulos = ""
+    if titulos_aberto == "Sim":
+        detalhes_titulos = st.text_input("Detalhes dos títulos em aberto / negociação", key=f"apr_det_tit_{rc}")
+
+    st.divider()
+    st.subheader("3. Equipamentos & Endereços")
+    qtd_end_aprov = st.number_input("Quantidade de endereços de entrega / centrais", min_value=1, value=1, step=1, key=f"apr_qtd_end_{rc}")
+    equipamentos_aprov = ""
+    if qtd_end_aprov == 1:
+        equipamentos_aprov = st.text_input("Equipamentos", key=f"apr_eq_unico_{rc}")
+    else:
+        eq_lista_aprov = []
+        for i in range(1, qtd_end_aprov + 1):
+            eq_e = st.text_input(f"Equipamentos [Entrega {i}]", key=f"apr_eq_end_{i}_{rc}")
+            if eq_e.strip():
+                eq_lista_aprov.append(f"[Entrega {i}] {eq_e.strip()}")
+        equipamentos_aprov = " ".join(eq_lista_aprov)
+
+    st.divider()
+    st.subheader("4. Implantação de Conta SIM")
+    conta_sim_aprov = st.radio("Implantação de conta sim?", ["Sim", "Não"], index=None, horizontal=True, key=f"apr_cs_{rc}")
+
+    pecas_cs, ficha_cs, portaria_cs, resp_cs, part_cs, sindico_cs = "", "", "", "", "", ""
+    if conta_sim_aprov == "Sim":
+        pecas_cs = st.text_input("Lista de peças", key=f"apr_pecas_{rc}")
+        ficha_cs = st.text_input("Ficha de clientes", key=f"apr_ficha_{rc}")
+        portaria_cs = st.text_input("Tipo de portaria", key=f"apr_port_{rc}")
+        resp_cs = st.text_input("Contato do responsável", key=f"apr_resp_{rc}")
+        part_cs = st.text_input("Particularidades", key=f"apr_part_{rc}")
+        sindico_cs = st.text_input("Contato do síndico", key=f"apr_sind_{rc}")
+
+    st.divider()
+    observacoes_aprov = st.text_area("Obs.", key=f"apr_obs_{rc}")
+    projeto_padrao_aprov = st.text_input("Projeto Padrão", key=f"apr_proj_{rc}")
+    cilindro_projeto_aprov = st.checkbox("Cilindros (N/A)", key=f"apr_cil_proj_{rc}")
+
+    st.divider()
+    if st.button("📝 Gerar Texto de Aprovação", type="primary", key=f"btn_gen_apr_{rc}"):
+        proj_apr_final = "N/A" if cilindro_projeto_aprov else projeto_padrao_aprov
+        titulos_final = detalhes_titulos.strip() if titulos_aberto == "Sim" else "n/a"
+
+        texto_aprovacao = f"""APROVAÇÃO DE CONTRATO
+
+Motivo da regularização: {motivo_regularizacao}
+
+Contato: {contato_aprov}
+Telefone: {telefone_aprov}
+E-mail: {email_aprov}
+Condição de pagamento: {cond_pag_aprov}
+Possui títulos em aberto: {titulos_aberto if titulos_aberto else 'Não'}
+Negociação títulos em aberto: {titulos_final}
+Equipamentos: {equipamentos_aprov}
+Implantação de conta.sim: [{'x' if conta_sim_aprov=='Sim' else ' '}] sim [{'x' if conta_sim_aprov=='Não' else ' '}] não"""
+
+        if conta_sim_aprov == "Sim":
+            texto_aprovacao += f"""
+Lista de peças: {pecas_cs}
+Ficha de clientes: {ficha_cs}
+Tipo de portaria: {portaria_cs}
+Contato do responsável: {resp_cs}
+Particularidades: {part_cs}
+Contato do síndico: {sindico_cs}"""
+
+        texto_aprovacao += f"""
+Obs.: {observacoes_aprov}
+Projeto Padrão: {proj_apr_final}"""
+
+        st.success("✅ Texto de aprovação gerado com sucesso!")
+        st.text_area("Texto gerado:", value=texto_aprovacao, height=200)
+        
+        components.html(f"""
+            <textarea id="txt_copy_apr" style="position:absolute; left:-9999px;">{texto_aprovacao}</textarea>
+            <button onclick="copyTextApr()" style="background-color:#004080; color:white; border:none; border-radius:8px; padding:10px 20px; font-weight:bold; cursor:pointer;">
+                📋 Copiar Texto Completo
+            </button>
+            <script>
+            function copyTextApr() {{
+                var copyText = document.getElementById("txt_copy_apr");
+                copyText.select();
+                document.execCommand("copy");
+                alert("Texto copiado para a área de transferência!");
+            }}
+            </script>
+        """, height=60)
+
+
+# =====================================================================
+# TELA 4: ANIVERSÁRIO DE CONTRATO
+# =====================================================================
+elif menu == "🎂 Aniversário de Contrato":
+    rc = st.session_state.get('reset_counter', 0)
+
+    col_logo, col_titulo = st.columns([1, 4])
+    with col_logo:
+        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=150)
+    with col_titulo:
+        st.title("Aniversário de Contrato (Reajuste IPCA)")
+        st.markdown("Cálculo de reajuste automático baseado no IPCA acumulado de 12 meses.")
+
+    st.divider()
+
+    ipca_atual = consultar_ipca_ibge()
+    st.info(f"📊 IPCA Acumulado de 12 Meses (IBGE Atual): **{ipca_atual:.2f}%**")
+
+    col_an1, col_an2 = st.columns(2)
+    with col_an1:
+        preco_anterior = st.number_input("Preço Anterior (R$)", min_value=0.0, format="%.2f", key=f"an_pa_{rc}")
+    with col_an2:
+        clausula_contrato = st.radio("Cliente possui cláusula em contrato?", ["Sim", "Não"], index=None, horizontal=True, key=f"an_clau_{rc}")
+
+    st.divider()
+    if st.button("📝 Gerar Texto de Aniversário de Contrato", type="primary", key=f"btn_gen_an_{rc}"):
+        preco_aniversario = preco_anterior * (1 + (ipca_atual / 100.0))
+
+        texto_aniversario = f"Aumento de Aniversário de contrato, IPCA - {ipca_atual:.2f}%."
+        if clausula_contrato == "Sim":
+            texto_aniversario += "\nCliente possui cláusula em contrato."
+        
+        texto_aniversario += f"\nPreço anterior: R$ {preco_anterior:.2f}"
+        texto_aniversario += f"\nPreço Aniversário: R$ {preco_aniversario:.2f}"
+
+        st.success("✅ Texto de aniversário gerado com sucesso!")
+        st.text_area("Texto gerado:", value=texto_aniversario, height=180)
+        
+        components.html(f"""
+            <textarea id="txt_copy_an" style="position:absolute; left:-9999px;">{texto_aniversario}</textarea>
+            <button onclick="copyTextAn()" style="background-color:#004080; color:white; border:none; border-radius:8px; padding:10px 20px; font-weight:bold; cursor:pointer;">
+                📋 Copiar Texto Completo
+            </button>
+            <script>
+            function copyTextAn() {{
+                var copyText = document.getElementById("txt_copy_an");
+                copyText.select();
+                document.execCommand("copy");
+                alert("Texto copiado para a área de transferência!");
+            }}
+            </script>
+        """, height=60)
