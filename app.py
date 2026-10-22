@@ -211,23 +211,23 @@ arquivo_atual = st.file_uploader(
 
 st.divider()
 
-# --- FUNÇÃO PARA ATUALIZAR O MODELO .PPTX SELECIONADO ---
+# --- FUNÇÃO PARA ATUALIZAR OS MODELOS EXATOS .PPTX ---
 def gerar_apresentacao_com_modelo(tipo_modelo, consultor, periodo, volume_ton, faturamento, clientes):
     if pptx is None:
         raise RuntimeError("A biblioteca python-pptx não está instalada no ambiente.")
     
+    # Nomes exatos dos arquivos de modelo fornecidos
     if "Trimestral" in tipo_modelo:
-        modelo_path = os.path.join(DIRETORIO_ATUAL, "rodrigo_sjc_2T2026_2.pptx")
+        modelo_path = os.path.join(DIRETORIO_ATUAL, "rodrigo_sjc_2T2026.pptx")
     else:
         modelo_path = os.path.join(DIRETORIO_ATUAL, "rodrigo_ago26.pptx")
     
     if not os.path.exists(modelo_path):
-        modelo_path = os.path.join(DIRETORIO_ATUAL, "rodrigo_ago26.pptx")
-        if not os.path.exists(modelo_path):
-            raise FileNotFoundError("Nenhum arquivo de modelo PPTX válido foi encontrado na pasta do sistema.")
+        raise FileNotFoundError(f"O arquivo de modelo '{os.path.basename(modelo_path)}' não foi encontrado no diretório do projeto.")
     
     prs = pptx.Presentation(modelo_path)
     
+    # Substituições dinâmicas preservando a formatação original
     for slide in prs.slides:
         for shape in slide.shapes:
             if shape.has_text_frame:
@@ -268,7 +268,7 @@ if arquivo_atual is not None:
 
         st.divider()
         st.subheader("4. Geração do Arquivo da Apresentação")
-        st.info(f"O motor Python utilizará o **modelo oficial Consigaz** selecionado para gerar a apresentação pronta para o consultor **{consultor_nome}**.")
+        st.info(f"O motor Python utilizará o template oficial **{'rodrigo_sjc_2T2026.pptx' if 'Trimestral' in tipo_apresentacao else 'rodrigo_ago26.pptx'}**[cite: 1, 2] para gerar a apresentação pronta para o consultor **{consultor_nome}**.")
 
         if st.button("🚀 Gerar e Baixar Apresentação Pronta", type="primary"):
             pptx_bytes = gerar_apresentacao_com_modelo(
