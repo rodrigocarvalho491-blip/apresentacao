@@ -63,7 +63,7 @@ with col_logo:
 
 with col_titulo:
     st.title("Gerador de Apresentação de Resultados")
-    st.markdown("Página dedicada para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**) com base comparativa anual.")
+    st.markdown("Página dedicada para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**) com base comparativa anual por consultor.")
 
 st.divider()
 
@@ -109,13 +109,11 @@ st.divider()
 # --- PROCESSAMENTO E COMPARAÇÃO ---
 if arquivo_atual is not None:
     try:
-        # Leitura da planilha do ano atual
         df_atual = pd.read_excel(arquivo_atual)
         df_atual.columns = df_atual.columns.str.strip()
         
         st.success(f"✅ Planilha do Ano Atual carregada com sucesso! (Registros: **{len(df_atual)}**)")
         
-        # Leitura opcional da planilha do ano anterior para comparativo
         df_anterior = None
         if arquivo_anterior is not None:
             df_anterior = pd.read_excel(arquivo_anterior)
@@ -124,12 +122,10 @@ if arquivo_atual is not None:
         
         st.markdown("### 3. Pré-visualização dos Indicadores & Comparativo")
         
-        # Extração de métricas do ano atual
         clientes_atual = df_atual["Cod Cli"].nunique() if "Cod Cli" in df_atual.columns else len(df_atual)
         volume_atual_ton = (df_atual["Qtde (kg)"].sum() / 1000.0) if "Qtde (kg)" in df_atual.columns else 0.0
         faturamento_atual = df_atual["Vl.Tot Item"].sum() if "Vl.Tot Item" in df_atual.columns else 0.0
         
-        # Extração de métricas do ano anterior (se houver)
         if df_anterior is not None:
             volume_ant_ton = (df_anterior["Qtde (kg)"].sum() / 1000.0) if "Qtde (kg)" in df_anterior.columns else 0.0
             faturamento_ant = df_anterior["Vl.Tot Item"].sum() if "Vl.Tot Item" in df_anterior.columns else 0.0
@@ -139,7 +135,6 @@ if arquivo_atual is not None:
         else:
             volume_ant_ton, faturamento_ant, crescimento_vol, crescimento_fat = 0.0, 0.0, 0.0, 0.0
 
-        # Exibição das métricas em cards comparativos
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
             st.metric("Consultor", consultor_nome)
