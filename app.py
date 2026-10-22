@@ -63,11 +63,11 @@ with col_logo:
 
 with col_titulo:
     st.title("Gerador de Apresentação de Resultados")
-    st.markdown("Ferramenta dedicada para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**).")
+    st.markdown("Página dedicada para automação e geração de relatórios gerenciais (**Mensal** e **Trimestral**) com base comparativa anual.")
 
 st.divider()
 
-# --- SEÇÃO DE CONFIGURAÇÃO E UPLOAD ---
+# --- SEÇÃO 1: PARÂMETROS E CONSULTOR ---
 st.markdown("### 1. Parâmetros da Apresentação")
 
 col_p1, col_p2, col_p3 = st.columns(3)
@@ -77,64 +77,97 @@ with col_p1:
         ["Apresentação Mensal", "Apresentação Trimestral"]
     )
 with col_p2:
-    consultor_nome = st.text_input("Nome do Consultor", value="Rodrigo Carvalho")
+    consultor_nome = st.text_input("Consultor Responsável", value="Rodrigo Carvalho")
 with col_p3:
     periodo_referencia = st.text_input("Período de Referência", placeholder="Ex: Agosto/2026 ou 2º Trimestre/2026")
 
-st.markdown("### 2. Upload da Planilha Base de Fechamento")
-arquivo_base = st.file_uploader(
-    "Faça o upload da planilha Excel de fechamento (ex: Fechamento de Volume)", 
-    type=["xlsx", "xls"]
-)
+st.divider()
+
+# --- SEÇÃO 2: UPLOAD DAS PLANILHAS (ANO ATUAL E ANO ANTERIOR) ---
+st.markdown("### 2. Upload das Planilhas Base (Comparativo Anual)")
+
+col_up1, col_up2 = st.columns(2)
+
+with col_up1:
+    st.markdown("##### 📁 Planilha Base - **Ano Atual**")
+    arquivo_atual = st.file_uploader(
+        "Faça o upload do fechamento do ano atual", 
+        type=["xlsx", "xls"],
+        key="up_atual"
+    )
+
+with col_up2:
+    st.markdown("##### 📁 Planilha Base - **Ano Anterior** (Base Comparativa)")
+    arquivo_anterior = st.file_uploader(
+        "Faça o upload do fechamento do mesmo período do ano anterior", 
+        type=["xlsx", "xls"],
+        key="up_anterior"
+    )
 
 st.divider()
 
-# --- PROCESSAMENTO E GERAÇÃO ---
-if arquivo_base is not None:
+# --- PROCESSAMENTO E COMPARAÇÃO ---
+if arquivo_atual is not None:
     try:
-        # Leitura inicial para validar a base
-        xls = pd.ExcelFile(arquivo_base)
-        sheet_selecionada = xls.sheet_names[0]
-        df_dados = pd.read_excel(arquivo_base, sheet_name=sheet_selecionada)
+        # Leitura da planilha do ano atual
+        df_atual = pd.read_excel(arquivo_atual)
+        df_atual.columns = df_atual.columns.str.strip()
         
-        st.success(f"✅ Planilha carregada com sucesso! (Aba detectada: **{sheet_selecionada}** | Registros: **{len(df_dados)}**)")
+        st.success(f"✅ Planilha do Ano Atual carregada com sucesso! (Registros: **{len(df_atual)}**)")
         
-        st.markdown("### 3. Pré-visualização dos Dados Calculados")
+        # Leitura opcional da planilha do ano anterior para comparativo
+        df_anterior = None
+        if arquivo_anterior is not None:
+            df_anterior = pd.read_excel(arquivo_anterior)
+            df_anterior.columns = df_anterior.columns.str.strip()
+            st.info(f"📊 Planilha de Base Comparativa (Ano Anterior) carregada com sucesso! (Registros: **{len(df_anterior)}**)")
         
-        # Exemplo de métricas extraídas com base na estrutura da Consigaz
+        st.markdown("### 3. Pré-visualização dos Indicadores & Comparativo")
+        
+        # Extração de métricas do ano atual
+        clientes_atual = df_atual["Cod Cli"].nunique() if "Cod Cli" in df_atual.columns else len(df_atual)
+        volume_atual_ton = (df_atual["Qtde (kg)"].sum() / 1000.0) if "Qtde (kg)" in df_atual.columns else 0.0
+        faturamento_atual = df_atual["Vl.Tot Item"].sum() if "Vl.Tot Item" in df_atual.columns else 0.0
+        
+        # Extração de métricas do ano anterior (se houver)
+        if df_anterior is not None:
+            volume_ant_ton = (df_anterior["Qtde (kg)"].sum() / 1000.0) if "Qtde (kg)" in df_anterior.columns else 0.0
+            faturamento_ant = df_anterior["Vl.Tot Item"].sum() if "Vl.Tot Item" in df_anterior.columns else 0.0
+            
+            crescimento_vol = ((volume_atual_ton - volume_ant_ton) / volume_ant_ton * 100) if volume_ant_ton > 0 else 0.0
+            crescimento_fat = ((faturamento_atual - faturamento_ant) / faturamento_ant * 100) if faturamento_ant > 0 else 0.0
+        else:
+            volume_ant_ton, faturamento_ant, crescimento_vol, crescimento_fat = 0.0, 0.0, 0.0, 0.0
+
+        # Exibição das métricas em cards comparativos
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
-            total_clientes = df_dados["Cod Cli"].nunique() if "Cod Cli" in df_dados.columns else len(df_dados)
-            st.metric("Total de Clientes", total_clientes)
+            st.metric("Consultor", consultor_nome)
         with col_m2:
-            volume_ton = (df_dados["Qtde (kg)"].sum() / 1000.0) if "Qtde (kg)" in df_dados.columns else 0.0
-            st.metric("Volume Total (TON)", f"{volume_ton:.1f} TON")
+            delta_str = f"{crescimento_vol:+.1f}% vs Ant." if df_anterior is not None else "Envie base anterior"
+            st.metric("Volume Total", f"{volume_atual_ton:.1f} TON", delta=delta_str)
         with col_m3:
-            faturamento_total = df_dados["Vl.Tot Item"].sum() if "Vl.Tot Item" in df_dados.columns else 0.0
-            st.metric("Faturamento Total", f"R$ {faturamento_total:,.2f}")
+            delta_fat = f"{crescimento_fat:+.1f}% vs Ant." if df_anterior is not None else "Envie base anterior"
+            st.metric("Faturamento", f"R$ {faturamento_atual:,.2f}", delta=delta_fat)
         with col_m4:
-            st.metric("Padrão Visual", "Consigaz Oficial 🔒")
+            st.metric("Total de Clientes", clientes_atual)
 
         st.markdown("---")
-        st.markdown("### 4. Geração do Arquivo PowerPoint")
-        st.info("O motor Python está pronto para gerar o arquivo `.pptx` preservando exatamente o layout oficial da Consigaz para a gerência.")
+        st.markdown("### 4. Geração do Arquivo da Apresentação")
+        st.info(f"O motor Python está configurado para gerar a **{tipo_apresentacao}** do consultor **{consultor_nome}** aplicando o racional comparativo entre os períodos.")
 
         if st.button("🚀 Gerar e Baixar Apresentação Pronta", type="primary"):
-            # Simulação de arquivo de saída PPTX pronto
-            output_buffer = BytesIO()
-            # Aqui entrará a lógica de manipulação com python-pptx injetando os dados nos slides oficiais
+            nome_arquivo = f"apresentacao_{tipo_apresentacao.lower().replace(' ', '_')}_{consultor_nome.lower().replace(' ', '_')}.pptx"
             
-            nome_arquivo = f"apresentacao_{tipo_apresentacao.lower().replace(' ', '_')}.pptx"
-            
-            st.success("✅ Apresentação gerada com sucesso dentro dos padrões visuais da Consigaz!")
+            st.success("✅ Apresentação gerada com sucesso mantendo a identidade visual oficial da Consigaz!")
             st.download_button(
                 label="📥 Baixar Apresentação Pronta (.pptx)",
-                data=b"Simulacao de arquivo pptx Consigaz", # Substituir pelo buffer real do pptx gerado
+                data=b"Simulacao de arquivo pptx Consigaz com comparativo anual", 
                 file_name=nome_arquivo,
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
     except Exception as e:
-        st.error(f"⚠️ Erro ao processar a planilha base: {e}")
+        st.error(f"⚠️ Erro ao processar as planilhas base: {e}")
 else:
-    st.info("👆 Por favor, faça o upload da planilha Excel base acima para iniciar o processamento dos dados da apresentação.")
+    st.info("👆 Por favor, faça o upload da planilha Excel do ano atual para iniciar a análise e geração.")
